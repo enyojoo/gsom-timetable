@@ -1,6 +1,6 @@
 # GSOM Timetable
 
-![GSOM Timetable](public/og-image.png)
+![GSOM Timetable](public/og-imagee.png)
 
 A modern, responsive web application for viewing class schedules at the Graduate School of Management (GSOM), St. Petersburg State University.
 
