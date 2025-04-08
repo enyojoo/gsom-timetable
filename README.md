@@ -30,28 +30,28 @@ A modern, responsive web application for viewing class schedules at the Graduate
 ### Installation
 
 1. Clone the repository:
-   \`\`\`bash
-   git clone https://github.com/yourusername/gsom-timetable.git
+   bash
+   git clone https://github.com/enyojoo/gsom-timetable.git
    cd gsom-timetable
-   \`\`\`
+   
 
 2. Install dependencies:
-   \`\`\`bash
+   bash
    npm install
    # or
    yarn install
    # or
    bun install
-   \`\`\`
+   
 
 3. Run the development server:
-   \`\`\`bash
+   bash
    npm run dev
    # or
    yarn dev
    # or
    bun dev
-   \`\`\`
+   
 
 4. Open [http://localhost:3000](http://localhost:3000) in your browser to see the application.
 
@@ -68,14 +68,12 @@ Where:
 - `mXX` is the master group number (e.g., m01)
 
 Each file follows this format:
-\`\`\`
-Day of week|Start time|End time|Course name|Professor|Room|Class type|Date
-\`\`\`
 
-Example:
-\`\`\`
-Monday|09:00|10:30|Corporate Finance|John Smith|Room 123|Lecture|2023-09-01
-\`\`\`
+AcademicGroup | Date	| Start |	End	| Name	| Discipline, name	| Type of academic work  |	Premises, Address	| Premises, Room	| Teachers
+
+Example: 23.B06-vshm	13-03-25 |  00:00	09:00:00	10:30:00 |	Elective. Russian as a Foreign Language, | Practical Lesson	 Russian as a foreign language	practical lesson |	St. Petersburg highway, 109, lit. A	2248	| Pavela I. G., Associate Professor
+
+
 
 ## Deployment
 
