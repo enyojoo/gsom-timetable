@@ -1,19 +1,13 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { sql } from "@/lib/database"
-import { validateSession } from "@/lib/auth"
-import { cookies } from "next/headers"
+import { verifyAdminSession } from "@/lib/auth"
 
 export async function POST(request: NextRequest) {
   try {
-    // Validate admin session
-    const sessionToken = cookies().get("gsom_admin_session")?.value
-    if (!sessionToken) {
-      return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 })
-    }
-
-    const sessionResult = await validateSession(sessionToken)
-    if (!sessionResult.success) {
-      return NextResponse.json({ success: false, message: "Invalid session" }, { status: 401 })
+    // Verify admin session
+    const session = await verifyAdminSession()
+    if (!session) {
+      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 })
     }
 
     // Create schedule_events table
@@ -21,20 +15,16 @@ export async function POST(request: NextRequest) {
       CREATE TABLE IF NOT EXISTS schedule_events (
           id SERIAL PRIMARY KEY,
           group_id INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
-          title_en VARCHAR(255) NOT NULL,
-          title_ru VARCHAR(255) NOT NULL,
-          type_en VARCHAR(100) NOT NULL,
-          type_ru VARCHAR(100) NOT NULL,
+          subject_en VARCHAR(255) NOT NULL,
+          subject_ru VARCHAR(255),
+          event_type VARCHAR(50) NOT NULL DEFAULT 'Lecture',
           teacher_en VARCHAR(255),
           teacher_ru VARCHAR(255),
           room VARCHAR(100),
-          address_en VARCHAR(255),
-          address_ru VARCHAR(255),
-          start_time TIME NOT NULL,
-          end_time TIME NOT NULL,
-          date DATE NOT NULL,
-          is_recurring BOOLEAN DEFAULT FALSE,
-          recurrence_pattern VARCHAR(50),
+          address VARCHAR(255),
+          start_time TIMESTAMP NOT NULL,
+          end_time TIMESTAMP NOT NULL,
+          recurrence_type VARCHAR(20) DEFAULT 'none',
           recurrence_end_date DATE,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -43,48 +33,28 @@ export async function POST(request: NextRequest) {
 
     // Create indexes
     await sql`CREATE INDEX IF NOT EXISTS idx_schedule_events_group_id ON schedule_events(group_id)`
-    await sql`CREATE INDEX IF NOT EXISTS idx_schedule_events_date ON schedule_events(date)`
-    await sql`CREATE INDEX IF NOT EXISTS idx_schedule_events_group_date ON schedule_events(group_id, date)`
+    await sql`CREATE INDEX IF NOT EXISTS idx_schedule_events_start_time ON schedule_events(start_time)`
+    await sql`CREATE INDEX IF NOT EXISTS idx_schedule_events_group_time ON schedule_events(group_id, start_time)`
 
-    // Check if we have any groups to add sample data
-    const groups = await sql`SELECT id FROM groups LIMIT 2`
+    // Check if sample data already exists
+    const existingEvents = await sql`SELECT COUNT(*) as count FROM schedule_events`
 
-    if (groups.length > 0) {
-      // Insert sample data only if no schedule events exist
-      const existingEvents = await sql`SELECT COUNT(*) as count FROM schedule_events`
+    if (existingEvents[0].count === 0) {
+      // Get some group IDs for sample data
+      const groups = await sql`
+        SELECT id, full_code FROM groups 
+        WHERE full_code IN ('24.B01-vshm', '24.B02-vshm', '23.B01-vshm')
+        LIMIT 3
+      `
 
-      if (existingEvents[0].count === 0) {
-        const groupIds = groups.map((g) => g.id)
-
-        await sql`
-          INSERT INTO schedule_events (
-              group_id, title_en, title_ru, type_en, type_ru, 
-              teacher_en, teacher_ru, room, address_en, address_ru,
-              start_time, end_time, date, is_recurring, recurrence_pattern, recurrence_end_date
-          ) VALUES 
-          (${groupIds[0]}, 'Strategic Management', 'Стратегический менеджмент', 'Lecture', 'Лекция',
-           'Dr. Smith', 'Д-р Смит', '101', 'Main Building', 'Главное здание',
-           '09:00:00', '10:30:00', '2024-01-15', true, 'weekly', '2024-05-15'),
-          
-          (${groupIds[0]}, 'Marketing Research', 'Маркетинговые исследования', 'Seminar', 'Семинар',
-           'Prof. Johnson', 'Проф. Джонсон', '205', 'Business Building', 'Бизнес-здание',
-           '11:00:00', '12:30:00', '2024-01-16', true, 'weekly', '2024-05-16')
-        `
-
-        if (groupIds.length > 1) {
+      if (groups.length > 0) {
+        // Insert sample events
+        for (const group of groups) {
           await sql`
-            INSERT INTO schedule_events (
-                group_id, title_en, title_ru, type_en, type_ru, 
-                teacher_en, teacher_ru, room, address_en, address_ru,
-                start_time, end_time, date, is_recurring, recurrence_pattern, recurrence_end_date
-            ) VALUES 
-            (${groupIds[1]}, 'Advanced Analytics', 'Продвинутая аналитика', 'Practical', 'Практическое занятие',
-             'Dr. Brown', 'Д-р Браун', '301', 'IT Building', 'IT-здание',
-             '14:00:00', '15:30:00', '2024-01-17', true, 'weekly', '2024-05-17'),
-            
-            (${groupIds[1]}, 'Digital Transformation', 'Цифровая трансформация', 'Lecture', 'Лекция',
-             'Prof. Davis', 'Проф. Дэвис', '102', 'Main Building', 'Главное здание',
-             '16:00:00', '17:30:00', '2024-01-18', true, 'weekly', '2024-05-18')
+            INSERT INTO schedule_events (group_id, subject_en, subject_ru, event_type, teacher_en, teacher_ru, room, address, start_time, end_time)
+            VALUES 
+            (${group.id}, 'Strategic Management', 'Стратегический менеджмент', 'Lecture', 'Dr. Smith', 'Др. Смит', '101', 'Main Building', '2024-01-15 09:00:00', '2024-01-15 10:30:00'),
+            (${group.id}, 'Marketing Research', 'Маркетинговые исследования', 'Seminar', 'Prof. Johnson', 'Проф. Джонсон', '205', 'Business Center', '2024-01-15 11:00:00', '2024-01-15 12:30:00')
           `
         }
       }
@@ -93,15 +63,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       message: "Schedule table initialized successfully",
-      groupsFound: groups.length,
+      eventsCount: existingEvents[0].count,
     })
   } catch (error) {
     console.error("Error initializing schedule table:", error)
     return NextResponse.json(
       {
         success: false,
-        message: "Failed to initialize schedule table",
-        error: error instanceof Error ? error.message : String(error),
+        error: "Failed to initialize schedule table",
       },
       { status: 500 },
     )

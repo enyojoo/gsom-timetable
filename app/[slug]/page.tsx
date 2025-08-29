@@ -7,15 +7,17 @@ import { sql } from "@/lib/database"
 import { unstable_cache } from "next/cache"
 
 interface TimetablePageProps {
-  params: {
+  params: Promise<{
     slug: string
-  }
+  }>
 }
 
 // Cache the schedule data with a short TTL
 const getCachedScheduleData = unstable_cache(
   async (groupPattern: string, degreeCode: string, programCode: string) => {
     try {
+      console.log("Looking for group:", { groupPattern, degreeCode, programCode })
+
       // First, verify that the group exists in the database
       const groupResult = await sql`
         SELECT g.*, p.name_en as program_name_en, p.name_ru as program_name_ru, d.name_en as degree_name_en, d.name_ru as degree_name_ru
@@ -25,7 +27,18 @@ const getCachedScheduleData = unstable_cache(
         WHERE g.full_code = ${groupPattern} AND d.code = ${degreeCode} AND p.code = ${programCode}
       `
 
+      console.log("Group query result:", groupResult)
+
       if (groupResult.length === 0) {
+        // Try to find any group with this pattern for debugging
+        const debugResult = await sql`
+          SELECT g.full_code, p.code as program_code, d.code as degree_code
+          FROM groups g
+          JOIN programs p ON g.program_id = p.id
+          JOIN degrees d ON p.degree_id = d.id
+          LIMIT 10
+        `
+        console.log("Available groups (debug):", debugResult)
         throw new Error("Group not found in database")
       }
 
@@ -38,6 +51,8 @@ const getCachedScheduleData = unstable_cache(
         WHERE group_id = ${group.id}
         ORDER BY start_time
       `
+
+      console.log("Schedule events found:", scheduleEvents.length)
 
       // Convert database events to the format expected by the timetable component
       const convertToScheduleEntry = (event: any) => ({
@@ -76,10 +91,14 @@ const getCachedScheduleData = unstable_cache(
 )
 
 export default async function TimetablePage({ params }: TimetablePageProps) {
-  const { slug } = params
+  const { slug } = await params
+
+  console.log("Timetable page accessed with slug:", slug)
 
   // Parse the slug to get program, year, and group pattern
   const slugInfo = parseSlug(slug)
+  console.log("Parsed slug info:", slugInfo)
+
   if (!slugInfo) {
     console.log("Invalid slug format:", slug)
     redirect("/")
@@ -95,6 +114,8 @@ export default async function TimetablePage({ params }: TimetablePageProps) {
 
     // Extract the group code for display (e.g., B12)
     const groupCode = slugInfo.groupCode
+
+    console.log("Successfully loaded timetable for:", group.full_code)
 
     return (
       <main className="container mx-auto pt-6 pb-0 px-4">
