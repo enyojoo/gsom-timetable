@@ -2,149 +2,131 @@ import { notFound } from "next/navigation"
 import { parseSlug } from "@/lib/program-utils"
 import { sql } from "@/lib/database"
 import { LanguageAwareTimetable } from "@/components/language-aware-timetable"
+import type { ScheduleEntry } from "@/lib/types"
 
-interface ScheduleEvent {
-  id: number
-  title_en: string
-  title_ru: string
-  type_en: string
-  type_ru: string
-  teacher_en?: string
-  teacher_ru?: string
-  room?: string
-  address_en?: string
-  address_ru?: string
-  start_time: string
-  end_time: string
-  date: string
-  group_code: string
+interface PageProps {
+  params: Promise<{ slug: string }>
 }
 
-interface TimetableEvent {
-  id: string
-  subject: { en: string; ru: string }
-  type: { en: string; ru: string }
-  teacher?: { en: string; ru: string }
-  room?: string
-  address?: { en: string; ru: string }
-  time: string
-  day: string
-}
-
-async function getScheduleData(fullCode: string): Promise<TimetableEvent[]> {
-  try {
-    console.log("Fetching schedule for group:", fullCode)
-
-    // First, check if the group exists
-    const groupCheck = await sql`
-      SELECT id, full_code, name_en, name_ru 
-      FROM groups 
-      WHERE full_code = ${fullCode}
-    `
-
-    console.log("Group check result:", groupCheck)
-
-    if (groupCheck.length === 0) {
-      console.log("Group not found, checking all available groups:")
-      const allGroups = await sql`
-        SELECT full_code, name_en, name_ru 
-        FROM groups 
-        ORDER BY full_code
-      `
-      console.log("Available groups:", allGroups)
-      return []
-    }
-
-    // Fetch schedule events
-    const events = (await sql`
-      SELECT 
-        se.id,
-        se.title_en,
-        se.title_ru,
-        se.type_en,
-        se.type_ru,
-        se.teacher_en,
-        se.teacher_ru,
-        se.room,
-        se.address_en,
-        se.address_ru,
-        se.start_time,
-        se.end_time,
-        se.date,
-        g.full_code as group_code
-      FROM schedule_events se
-      JOIN groups g ON se.group_id = g.id
-      WHERE g.full_code = ${fullCode}
-      ORDER BY se.date, se.start_time
-    `) as ScheduleEvent[]
-
-    console.log("Found events:", events.length)
-
-    // Convert to timetable format
-    const timetableEvents: TimetableEvent[] = events.map((event) => {
-      const eventDate = new Date(event.date)
-      const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
-      const dayName = dayNames[eventDate.getDay()]
-
-      return {
-        id: event.id.toString(),
-        subject: {
-          en: event.title_en,
-          ru: event.title_ru,
-        },
-        type: {
-          en: event.type_en,
-          ru: event.type_ru,
-        },
-        teacher:
-          event.teacher_en && event.teacher_ru
-            ? {
-                en: event.teacher_en,
-                ru: event.teacher_ru,
-              }
-            : undefined,
-        room: event.room || undefined,
-        address:
-          event.address_en && event.address_ru
-            ? {
-                en: event.address_en,
-                ru: event.address_ru,
-              }
-            : undefined,
-        time: `${event.start_time.slice(0, 5)}-${event.end_time.slice(0, 5)}`,
-        day: dayName,
-      }
-    })
-
-    return timetableEvents
-  } catch (error) {
-    console.error("Error fetching schedule data:", error)
-    return []
-  }
-}
-
-export default async function TimetablePage({ params }: { params: Promise<{ slug: string }> }) {
+export default async function TimetablePage({ params }: PageProps) {
   const { slug } = await params
-  console.log("Timetable page accessed with slug:", slug)
 
-  const programInfo = parseSlug(slug)
+  console.log("Slug page accessed with:", slug)
 
-  if (!programInfo) {
-    console.log("Failed to parse slug, redirecting to not found")
+  // Parse the slug to extract components
+  const parsedSlug = parseSlug(slug)
+  console.log("Parsed slug:", parsedSlug)
+
+  if (!parsedSlug) {
+    console.log("Invalid slug format")
     notFound()
   }
 
-  console.log("Parsed program info:", programInfo)
+  const { degreeCode, programCode, year, groupCode, groupPattern } = parsedSlug
 
-  // Get schedule data from database
-  const scheduleData = await getScheduleData(programInfo.fullCode)
+  try {
+    // Find the group in the database using the parsed information
+    console.log("Looking for group with pattern:", groupPattern)
 
-  if (scheduleData.length === 0) {
-    console.log("No schedule data found for:", programInfo.fullCode)
-    // Still show the page but with empty schedule
+    const groupResult = await sql`
+      SELECT g.id, g.code, g.name_en, g.name_ru, g.full_code, g.year,
+             p.code as program_code, p.name_en as program_name_en, p.name_ru as program_name_ru,
+             d.code as degree_code, d.name_en as degree_name_en, d.name_ru as degree_name_ru
+      FROM groups g
+      JOIN programs p ON g.program_id = p.id
+      JOIN degrees d ON p.degree_id = d.id
+      WHERE g.full_code = ${groupPattern}
+        AND p.code = ${programCode}
+        AND d.code = ${degreeCode}
+        AND g.year = ${Number.parseInt(year)}
+    `
+
+    console.log("Group query result:", groupResult)
+
+    if (groupResult.length === 0) {
+      console.log("Group not found, checking what groups exist...")
+
+      // Debug: Show what groups exist
+      const allGroups = await sql`
+        SELECT g.full_code, p.code as program_code, d.code as degree_code, g.year
+        FROM groups g
+        JOIN programs p ON g.program_id = p.id
+        JOIN degrees d ON p.degree_id = d.id
+        ORDER BY g.year DESC, p.code, g.code
+      `
+
+      console.log("Available groups:", allGroups)
+      notFound()
+    }
+
+    const group = groupResult[0]
+    console.log("Found group:", group)
+
+    // Fetch schedule events for this group
+    const scheduleEvents = await sql`
+      SELECT id, title_en, title_ru, type_en, type_ru, teacher_en, teacher_ru,
+             room, address_en, address_ru, start_time, end_time, date,
+             is_recurring, recurrence_pattern, recurrence_end_date
+      FROM schedule_events
+      WHERE group_id = ${group.id}
+      ORDER BY date, start_time
+    `
+
+    console.log("Schedule events found:", scheduleEvents.length)
+
+    // Convert database events to the format expected by the timetable component
+    const scheduleData: ScheduleEntry[] = scheduleEvents.map((event: any) => ({
+      time: event.start_time,
+      endTime: event.end_time,
+      subject: event.title_en || event.title_ru || "Unknown Subject",
+      subjectRu: event.title_ru || event.title_en || "Неизвестный предмет",
+      type: event.type_en || "Lecture",
+      typeRu: event.type_ru || "Лекция",
+      teacher: event.teacher_en || event.teacher_ru || "",
+      teacherRu: event.teacher_ru || event.teacher_en || "",
+      room: event.room || "",
+      address: event.address_en || event.address_ru || "",
+      addressRu: event.address_ru || event.address_en || "",
+      date: event.date,
+    }))
+
+    console.log("Converted schedule data:", scheduleData.length, "entries")
+
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <LanguageAwareTimetable
+          scheduleData={scheduleData}
+          groupInfo={{
+            degree: group.degree_name_en,
+            degreeRu: group.degree_name_ru,
+            program: group.program_name_en,
+            programRu: group.program_name_ru,
+            year: group.year.toString(),
+            group: group.name_en,
+            groupRu: group.name_ru,
+            fullCode: group.full_code,
+          }}
+        />
+      </div>
+    )
+  } catch (error) {
+    console.error("Database error in slug page:", error)
+    notFound()
+  }
+}
+
+export async function generateMetadata({ params }: PageProps) {
+  const { slug } = await params
+  const parsedSlug = parseSlug(slug)
+
+  if (!parsedSlug) {
+    return {
+      title: "Timetable Not Found",
+    }
   }
 
-  console.log("Rendering timetable with", scheduleData.length, "events")
-
-  return <LanguageAwareTimetable programInfo={programInfo} scheduleData={scheduleData} />
+  return {
+    title: `Timetable - ${parsedSlug.programCode.toUpperCase()} ${parsedSlug.year} ${parsedSlug.groupCode.toUpperCase()}`,
+    description: `University timetable for ${parsedSlug.programCode} program, year ${parsedSlug.year}, group ${parsedSlug.groupCode}`,
+  }
 }
