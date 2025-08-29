@@ -5,6 +5,9 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const type = searchParams.get("type")
+    const degreeId = searchParams.get("degreeId")
+    const programId = searchParams.get("programId")
+    const year = searchParams.get("year")
 
     switch (type) {
       case "degrees":
@@ -16,94 +19,98 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ success: true, data: degrees })
 
       case "programs":
-        const degreeId = searchParams.get("degreeId")
         if (!degreeId) {
-          return NextResponse.json({ success: false, message: "Degree ID is required" }, { status: 400 })
+          return NextResponse.json({ success: false, error: "Degree ID is required" })
         }
 
         const programs = await sql`
-          SELECT DISTINCT p.id, p.name_en, p.name_ru, p.code, g.year
+          SELECT DISTINCT p.id, p.name_en, p.name_ru, p.code, p.year
           FROM programs p
-          JOIN groups g ON p.id = g.program_id
           WHERE p.degree_id = ${degreeId}
-          ORDER BY g.year DESC, p.name_en
+          ORDER BY p.name_en, p.year DESC
         `
         return NextResponse.json({ success: true, data: programs })
 
       case "years":
-        const programId = searchParams.get("programId")
         if (!programId) {
-          return NextResponse.json({ success: false, message: "Program ID is required" }, { status: 400 })
+          return NextResponse.json({ success: false, error: "Program ID is required" })
         }
 
         const years = await sql`
           SELECT DISTINCT year
-          FROM groups
-          WHERE program_id = ${programId}
+          FROM programs
+          WHERE id = ${programId}
           ORDER BY year DESC
         `
         return NextResponse.json({ success: true, data: years })
 
       case "groups":
-        const groupProgramId = searchParams.get("programId")
-        const year = searchParams.get("year")
-
-        if (!groupProgramId || !year) {
-          return NextResponse.json({ success: false, message: "Program ID and year are required" }, { status: 400 })
+        if (!programId || !year) {
+          return NextResponse.json({ success: false, error: "Program ID and year are required" })
         }
 
         const groups = await sql`
-          SELECT g.id, g.program_id, g.year, g.code, g.full_code, g.name_en, g.name_ru,
-                 p.name_en as program_name_en, p.name_ru as program_name_ru,
-                 d.name_en as degree_name_en, d.name_ru as degree_name_ru
+          SELECT g.id, g.name_en, g.name_ru, g.code, g.full_code
           FROM groups g
           JOIN programs p ON g.program_id = p.id
-          JOIN degrees d ON p.degree_id = d.id
-          WHERE g.program_id = ${groupProgramId} AND g.year = ${year}
+          WHERE p.id = ${programId} AND p.year = ${year}
           ORDER BY g.code
         `
         return NextResponse.json({ success: true, data: groups })
 
       case "schedule":
+        if (!programId || !year) {
+          return NextResponse.json({ success: false, error: "Program ID and year are required" })
+        }
+
         const groupId = searchParams.get("groupId")
         const startDate = searchParams.get("startDate")
         const endDate = searchParams.get("endDate")
 
-        if (!groupId) {
-          return NextResponse.json({ success: false, message: "Group ID is required" }, { status: 400 })
+        let scheduleQuery = sql`
+          SELECT 
+            se.*,
+            g.name_en as group_name_en,
+            g.name_ru as group_name_ru,
+            g.code as group_code,
+            g.full_code as group_full_code
+          FROM schedule_events se
+          JOIN groups g ON se.group_id = g.id
+          JOIN programs p ON g.program_id = p.id
+          WHERE p.id = ${programId} AND p.year = ${year}
+        `
+
+        if (groupId) {
+          scheduleQuery = sql`
+            SELECT 
+              se.*,
+              g.name_en as group_name_en,
+              g.name_ru as group_name_ru,
+              g.code as group_code,
+              g.full_code as group_full_code
+            FROM schedule_events se
+            JOIN groups g ON se.group_id = g.id
+            WHERE g.id = ${groupId}
+          `
         }
 
-        let scheduleQuery
         if (startDate && endDate) {
-          scheduleQuery = await sql`
-            SELECT se.id, se.group_id, se.title_en, se.title_ru, se.type_en, se.type_ru,
-                   se.teacher_en, se.teacher_ru, se.room, se.address_en, se.address_ru,
-                   se.start_time, se.end_time, se.date, se.is_recurring, se.recurrence_pattern,
-                   se.recurrence_end_date
-            FROM schedule_events se
-            WHERE se.group_id = ${groupId} 
-              AND se.date >= ${startDate} 
-              AND se.date <= ${endDate}
-            ORDER BY se.date, se.start_time
-          `
-        } else {
-          scheduleQuery = await sql`
-            SELECT se.id, se.group_id, se.title_en, se.title_ru, se.type_en, se.type_ru,
-                   se.teacher_en, se.teacher_ru, se.room, se.address_en, se.address_ru,
-                   se.start_time, se.end_time, se.date, se.is_recurring, se.recurrence_pattern,
-                   se.recurrence_end_date
-            FROM schedule_events se
-            WHERE se.group_id = ${groupId}
-            ORDER BY se.date, se.start_time
+          scheduleQuery = sql`
+            ${scheduleQuery}
+            AND se.event_date BETWEEN ${startDate} AND ${endDate}
           `
         }
-        return NextResponse.json({ success: true, data: scheduleQuery })
+
+        scheduleQuery = sql`${scheduleQuery} ORDER BY se.event_date, se.start_time`
+
+        const schedule = await scheduleQuery
+        return NextResponse.json({ success: true, data: schedule })
 
       default:
-        return NextResponse.json({ success: false, message: "Invalid type parameter" }, { status: 400 })
+        return NextResponse.json({ success: false, error: "Invalid type parameter" })
     }
   } catch (error) {
-    console.error("Error fetching timetable data:", error)
-    return NextResponse.json({ success: false, message: "Failed to fetch data" }, { status: 500 })
+    console.error("Database error:", error)
+    return NextResponse.json({ success: false, error: "Database error" }, { status: 500 })
   }
 }

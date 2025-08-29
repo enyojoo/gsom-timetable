@@ -98,53 +98,46 @@ export function getGroupDisplayName(group: string): string {
   return group
 }
 
-// Function to get program code for slug
+// Function to get program code for slug - updated for database structure
 function getProgramCode(program: string): string {
-  switch (program) {
-    case "Management":
-      return "men" // from Менеджмент
-    case "International Management":
-      return "mmen" // from Международный менеджмент
-    case "Public Administration":
-      return "gmu" // from Государственное и муниципальное управление
-    case "Business Analytics and Big Data":
-      return "babd" // from Бизнес-аналитика и большие данные
-    case "Smart City Management":
-      return "scm" // from Управление умным городом
-    case "Corporate Finance":
-      return "cfin" // from Корпоративные финансы
-    default:
-      return "prog"
+  // Convert program names to codes
+  const programMap: Record<string, string> = {
+    Management: "men",
+    "International Management": "mmen",
+    "Public Administration": "gmu",
+    "Business Analytics and Big Data": "babd",
+    "Smart City Management": "scm",
+    "Corporate Finance": "cfin",
   }
+
+  return programMap[program] || "prog"
 }
 
 // Function to get degree code for slug
-function getDegreeCode(degree: string): string {
-  if (degree === "master") {
-    return "mag" // from Магистратура
-  }
-  return "bak" // from Бакалавриат
+function getDegreeCode(degreeId: number): string {
+  // 1 = Bachelor, 2 = Master (based on our seed data)
+  return degreeId === 2 ? "mag" : "bak"
 }
 
-// Function to generate a slug for the URL
-export function generateSlug(program: string, year: string, group: string, degree = "bachelor"): string {
+// Function to generate a slug for the URL - updated for database structure
+export function generateSlug(programCode: string, year: string, groupFullCode: string, degreeId: number): string {
   // Extract the year prefix (e.g., 2023 -> 23)
   const yearPrefix = year.substring(2)
 
-  // Extract the group code (e.g., 23.B12-vshm -> B12 or 23.Б12-вшм -> Б12)
-  const groupCode = getGroupDisplayName(group).toLowerCase()
+  // Extract the group code from full_code (e.g., "23.B12-vshm" -> "b12")
+  const groupCode = getGroupDisplayName(groupFullCode).toLowerCase()
 
   // Get program code for the slug
-  const programCode = getProgramCode(program)
+  const programSlugCode = getProgramCode(programCode)
 
   // Get degree code for the slug
-  const degreeCode = getDegreeCode(degree)
+  const degreeCode = getDegreeCode(degreeId)
 
   // Generate the slug (e.g., bak-men-24-b01 or mag-men-24-b01)
-  return `${degreeCode}-${programCode}-${yearPrefix}-${groupCode}`
+  return `${degreeCode}-${programSlugCode}-${yearPrefix}-${groupCode}`
 }
 
-// Function to parse a slug and extract program, year, and group
+// Function to parse a slug and extract program, year, and group - updated for database
 export function parseSlug(
   slug: string,
 ): { program: string; year: string; groupPattern: string; programCode: string; degree: string } | null {
@@ -157,28 +150,18 @@ export function parseSlug(
     const groupCode = parts[3].toUpperCase()
 
     // Map program code to program name
-    let programName = ""
-    switch (programCode) {
-      case "men":
-        programName = "Management"
-        break
-      case "mmen":
-        programName = "International Management"
-        break
-      case "gmu":
-        programName = "Public Administration"
-        break
-      case "babd":
-        programName = "Business Analytics and Big Data"
-        break
-      case "scm":
-        programName = "Smart City Management"
-        break
-      case "cfin":
-        programName = "Corporate Finance"
-        break
-      default:
-        return null
+    const programMap: Record<string, string> = {
+      men: "Management",
+      mmen: "International Management",
+      gmu: "Public Administration",
+      babd: "Business Analytics and Big Data",
+      scm: "Smart City Management",
+      cfin: "Corporate Finance",
+    }
+
+    const programName = programMap[programCode]
+    if (!programName) {
+      return null
     }
 
     // Determine degree from degreeCode
