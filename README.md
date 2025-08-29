@@ -1,99 +1,47 @@
 # GSOM Timetable
 
-![GSOM Timetable](public/og-imagee.png)
+A web application for viewing GSOM (Graduate School of Management) timetables.
 
-A modern, responsive web application for viewing class schedules at the Graduate School of Management (GSOM), St. Petersburg State University.
+## Schedule Data Storage
 
-## Features
+This application uses Vercel Blob Storage to securely store schedule data files. This approach has several advantages:
 
-- 🌐 Bilingual support (English/Russian)
-- 📱 Responsive design for all devices
-- 🎓 Support for Bachelor's and Master's programs
-- 📅 Comprehensive timetable view
-- 🔍 Easy program, year, and group selection
-- ⌨️ Command palette for quick navigation
+1. **Security**: Schedule data is not exposed in the public repository
+2. **Persistence**: Updates made through the admin interface are persistent and not lost on redeployment
+3. **Simplicity**: No need to manually update files in the repository
 
-## Technologies Used
+## Admin Interface
 
-- [Next.js](https://nextjs.org/) - React framework
-- [TypeScript](https://www.typescriptlang.org/) - Type-safe JavaScript
-- [Tailwind CSS](https://tailwindcss.com/) - Utility-first CSS framework
-- [cmdk](https://cmdk.paco.me/) - Command palette component
+The application includes an admin interface at `/update` that allows authorized users to:
 
-## Getting Started
+1. Migrate all schedule files from the public directory to Blob storage
+2. View and edit schedule files
+3. Save changes directly to Blob storage
 
-### Prerequisites
+## Development
 
-- Node.js 18+ or Bun
-- npm, yarn, or bun
+During development, the application will:
 
-### Installation
+1. Try to read files from Blob storage first
+2. Fall back to local files in the `public/data` directory if Blob storage fails
+3. Save changes to both Blob storage and local files
 
-1. Clone the repository:
-   bash
-   git clone https://github.com/enyojoo/gsom-timetable.git
-   cd gsom-timetable
-   
+## Production
 
-2. Install dependencies:
-   bash
-   npm install
-   # or
-   yarn install
-   # or
-   bun install
-   
+In production, the application will:
 
-3. Run the development server:
-   bash
-   npm run dev
-   # or
-   yarn dev
-   # or
-   bun dev
-   
+1. Read files exclusively from Blob storage
+2. Save changes only to Blob storage
 
-4. Open [http://localhost:3000](http://localhost:3000) in your browser to see the application.
+## Initial Setup
 
-## Data Format
+To set up the application for the first time:
 
-Timetable data is stored in text files in the `public/data/` directory. The naming convention is:
+1. Deploy the application to Vercel
+2. Set up the required environment variables:
+   - `ADMIN_PASSWORD`: Password for the admin interface
+   - `BLOB_READ_WRITE_TOKEN`: Token for Vercel Blob storage
+3. Visit `/update` and authenticate with the admin password
+4. Use the "Migrate All Files to Blob Storage" button to move all schedule files to Blob storage
 
-- English: `schedule-YY-bXX.txt` or `schedule-YY-mXX.txt`
-- Russian: `ru-schedule-YY-bXX.txt` or `ru-schedule-YY-mXX.txt`
-
-Where:
-- `YY` is the last two digits of the enrollment year (e.g., 21 for 2021)
-- `bXX` is the bachelor group number (e.g., b01)
-- `mXX` is the master group number (e.g., m01)
-
-Each file follows this format:
-
-AcademicGroup | Date	| Start |	End	| Name	| Discipline, name	| Type of academic work  |	Premises, Address	| Premises, Room	| Teachers
-
-Example: 23.B06-vshm	13-03-25 |  00:00	09:00:00	10:30:00 |	Elective. Russian as a Foreign Language, | Practical Lesson	 Russian as a foreign language	practical lesson |	St. Petersburg highway, 109, lit. A	2248	| Pavela I. G., Associate Professor
-
-
-
-## Deployment
-
-The application can be easily deployed to Vercel:
-
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fyourusername%2Fgsom-timetable)
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## NB
-I built this Timetable is support of student and donated to Graduate School of Management, St. Petersburg State University
+After migration, you can safely remove the schedule files from the `public/data` directory in the repository.

@@ -5,6 +5,8 @@ import { Inter } from "next/font/google"
 import { LanguageProvider } from "@/lib/language-context"
 import { Footer } from "@/components/footer"
 import { Analytics } from "@vercel/analytics/react"
+import { PostHogProvider } from "@/components/posthog-provider"
+import { Toaster } from "@/components/ui/toaster"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -35,7 +37,7 @@ export const metadata: Metadata = {
     description: "Timetable for Graduate School of Management, SPbU",
     images: ["/og-image.png"],
   },
-    generator: 'v0.dev'
+    generator: 'v0.app'
 }
 
 export default function RootLayout({
@@ -46,17 +48,17 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
-        <LanguageProvider>
-          <div className="min-h-screen flex flex-col">
-            <div className="flex-grow">{children}</div>
-            <Footer />
-          </div>
-        </LanguageProvider>
+        <PostHogProvider>
+          <LanguageProvider>
+            <div className="min-h-screen flex flex-col">
+              <div className="flex-grow">{children}</div>
+              <Footer />
+            </div>
+          </LanguageProvider>
+        </PostHogProvider>
+        <Toaster />
         <Analytics />
       </body>
     </html>
   )
 }
-
-
-import './globals.css'

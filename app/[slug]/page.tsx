@@ -4,12 +4,22 @@ import { LanguageAwareTimetable } from "@/components/language-aware-timetable"
 import { TimetableHeader } from "@/components/timetable-header"
 import { LanguageMeta } from "@/components/language-meta"
 import { getScheduleFiles } from "../api/schedule-data"
+import { unstable_cache } from "next/cache"
 
 interface TimetablePageProps {
   params: {
     slug: string
   }
 }
+
+// Cache the schedule data with a short TTL
+const getCachedScheduleFiles = unstable_cache(
+  async (groupPattern: string) => {
+    return await getScheduleFiles(groupPattern)
+  },
+  ["schedule-files"],
+  { revalidate: 60 }, // Revalidate every 60 seconds
+)
 
 export default async function TimetablePage({ params }: TimetablePageProps) {
   const { slug } = params
@@ -23,7 +33,7 @@ export default async function TimetablePage({ params }: TimetablePageProps) {
 
   try {
     // Get schedule data from server function, passing the group pattern
-    const { englishParsedData, russianParsedData } = await getScheduleFiles(slugInfo.groupPattern)
+    const { englishParsedData, russianParsedData } = await getCachedScheduleFiles(slugInfo.groupPattern)
 
     // Use the group pattern from the slug info
     const groupToUse = slugInfo.groupPattern
