@@ -2,6 +2,7 @@ import { notFound } from "next/navigation"
 import { parseSlug } from "@/lib/program-utils"
 import { sql } from "@/lib/database"
 import { LanguageAwareTimetable } from "@/components/language-aware-timetable"
+import { LanguageMeta } from "@/components/language-meta"
 import type { ScheduleEntry } from "@/lib/types"
 
 interface PageProps {
@@ -53,6 +54,7 @@ export default async function TimetablePage({ params }: PageProps) {
         JOIN programs p ON g.program_id = p.id
         JOIN degrees d ON p.degree_id = d.id
         ORDER BY g.year DESC, p.code, g.code
+        LIMIT 10
       `
 
       console.log("Available groups:", allGroups)
@@ -92,22 +94,22 @@ export default async function TimetablePage({ params }: PageProps) {
 
     console.log("Converted schedule data:", scheduleData.length, "entries")
 
+    const groupInfo = {
+      degree: group.degree_name_en,
+      degreeRu: group.degree_name_ru,
+      program: group.program_name_en,
+      programRu: group.program_name_ru,
+      year: group.year.toString(),
+      group: group.name_en,
+      groupRu: group.name_ru,
+      fullCode: group.full_code,
+    }
+
     return (
-      <div className="min-h-screen bg-gray-50">
-        <LanguageAwareTimetable
-          scheduleData={scheduleData}
-          groupInfo={{
-            degree: group.degree_name_en,
-            degreeRu: group.degree_name_ru,
-            program: group.program_name_en,
-            programRu: group.program_name_ru,
-            year: group.year.toString(),
-            group: group.name_en,
-            groupRu: group.name_ru,
-            fullCode: group.full_code,
-          }}
-        />
-      </div>
+      <main className="container mx-auto pt-6 pb-0 px-4">
+        <LanguageMeta />
+        <LanguageAwareTimetable scheduleData={scheduleData} groupInfo={groupInfo} />
+      </main>
     )
   } catch (error) {
     console.error("Database error in slug page:", error)

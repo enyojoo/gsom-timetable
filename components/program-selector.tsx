@@ -1,342 +1,387 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Calendar } from "lucide-react"
-import { Button } from "@/components/ui/button"
 import { useRouter } from "next/navigation"
-import { generateSlug } from "@/lib/program-utils"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useLanguage } from "@/lib/language-context"
+import { generateSlug } from "@/lib/program-utils"
 
-interface ProgramSelectorProps {
-  defaultProgram?: string
-  defaultYear?: string
-  defaultGroup?: string
+interface Degree {
+  id: number
+  code: string
+  name_en: string
+  name_ru: string
 }
 
-export function ProgramSelector({ defaultProgram, defaultYear, defaultGroup }: ProgramSelectorProps) {
+interface Program {
+  id: number
+  code: string
+  name_en: string
+  name_ru: string
+  degree_id: number
+}
+
+interface Year {
+  year: number
+}
+
+interface Group {
+  id: number
+  code: string
+  name_en: string
+  name_ru: string
+  full_code: string
+  year: number
+}
+
+export function ProgramSelector() {
+  const { language, t } = useLanguage()
   const router = useRouter()
-  const { language } = useLanguage()
 
-  // State for all data from database
-  const [degrees, setDegrees] = useState<any[]>([])
-  const [programs, setPrograms] = useState<any[]>([])
-  const [years, setYears] = useState<any[]>([])
-  const [groups, setGroups] = useState<any[]>([])
+  // State for form data
+  const [selectedDegree, setSelectedDegree] = useState<Degree | null>(null)
+  const [selectedProgram, setSelectedProgram] = useState<Program | null>(null)
+  const [selectedYear, setSelectedYear] = useState<number | null>(null)
+  const [selectedGroup, setSelectedGroup] = useState<Group | null>(null)
 
-  // Selected values
-  const [selectedDegree, setSelectedDegree] = useState<any | null>(null)
-  const [selectedProgram, setSelectedProgram] = useState<any | null>(null)
-  const [selectedYear, setSelectedYear] = useState<string>("")
-  const [selectedGroup, setSelectedGroup] = useState<string>("")
+  // State for dropdown options
+  const [degrees, setDegrees] = useState<Degree[]>([])
+  const [programs, setPrograms] = useState<Program[]>([])
+  const [years, setYears] = useState<Year[]>([])
+  const [groups, setGroups] = useState<Group[]>([])
 
   // Loading states
-  const [isLoadingDegrees, setIsLoadingDegrees] = useState(true)
-  const [isLoadingPrograms, setIsLoadingPrograms] = useState(false)
-  const [isLoadingYears, setIsLoadingYears] = useState(false)
-  const [isLoadingGroups, setIsLoadingGroups] = useState(false)
+  const [loadingDegrees, setLoadingDegrees] = useState(true)
+  const [loadingPrograms, setLoadingPrograms] = useState(false)
+  const [loadingYears, setLoadingYears] = useState(false)
+  const [loadingGroups, setLoadingGroups] = useState(false)
 
   // Fetch degrees on component mount
   useEffect(() => {
-    const fetchDegrees = async () => {
-      try {
-        setIsLoadingDegrees(true)
-        console.log("Fetching degrees...")
-
-        const response = await fetch("/api/timetable-data?type=degrees")
-        const data = await response.json()
-
-        console.log("Degrees response:", data)
-
-        if (data.success && data.data.length > 0) {
-          setDegrees(data.data)
-          // Auto-select first degree
-          setSelectedDegree(data.data[0])
-        } else {
-          console.error("No degrees found:", data)
-        }
-      } catch (error) {
-        console.error("Error fetching degrees:", error)
-      } finally {
-        setIsLoadingDegrees(false)
-      }
-    }
-
     fetchDegrees()
   }, [])
 
-  // Fetch programs when degree changes
-  useEffect(() => {
-    const fetchPrograms = async () => {
-      if (!selectedDegree?.id) {
+  const fetchDegrees = async () => {
+    try {
+      setLoadingDegrees(true)
+      console.log("Fetching degrees...")
+
+      const response = await fetch("/api/timetable-data?type=degrees")
+      const result = await response.json()
+
+      console.log("Degrees API response:", result)
+
+      if (result.success && result.data) {
+        setDegrees(result.data)
+        console.log("Degrees loaded:", result.data.length)
+      } else {
+        console.error("Failed to fetch degrees:", result.error)
+        setDegrees([])
+      }
+    } catch (error) {
+      console.error("Error fetching degrees:", error)
+      setDegrees([])
+    } finally {
+      setLoadingDegrees(false)
+    }
+  }
+
+  const fetchPrograms = async (degreeId: number) => {
+    try {
+      setLoadingPrograms(true)
+      console.log("Fetching programs for degree:", degreeId)
+
+      const response = await fetch(`/api/timetable-data?type=programs&degreeId=${degreeId}`)
+      const result = await response.json()
+
+      console.log("Programs API response:", result)
+
+      if (result.success && result.data) {
+        setPrograms(result.data)
+        console.log("Programs loaded:", result.data.length)
+      } else {
+        console.error("Failed to fetch programs:", result.error)
         setPrograms([])
-        setSelectedProgram(null)
-        return
       }
-
-      try {
-        setIsLoadingPrograms(true)
-        console.log("Fetching programs for degree:", selectedDegree.id)
-
-        const response = await fetch(`/api/timetable-data?type=programs&degreeId=${selectedDegree.id}`)
-        const data = await response.json()
-
-        console.log("Programs response:", data)
-
-        if (data.success) {
-          setPrograms(data.data)
-          // Reset dependent selections
-          setSelectedProgram(null)
-          setSelectedYear("")
-          setSelectedGroup("")
-          setYears([])
-          setGroups([])
-
-          // Auto-select first program
-          if (data.data.length > 0) {
-            setSelectedProgram(data.data[0])
-          }
-        }
-      } catch (error) {
-        console.error("Error fetching programs:", error)
-      } finally {
-        setIsLoadingPrograms(false)
-      }
+    } catch (error) {
+      console.error("Error fetching programs:", error)
+      setPrograms([])
+    } finally {
+      setLoadingPrograms(false)
     }
+  }
 
-    fetchPrograms()
-  }, [selectedDegree])
+  const fetchYears = async (programId: number) => {
+    try {
+      setLoadingYears(true)
+      console.log("Fetching years for program:", programId)
 
-  // Fetch years when program changes
-  useEffect(() => {
-    const fetchYears = async () => {
-      if (!selectedProgram?.id) {
+      const response = await fetch(`/api/timetable-data?type=years&programId=${programId}`)
+      const result = await response.json()
+
+      console.log("Years API response:", result)
+
+      if (result.success && result.data) {
+        setYears(result.data)
+        console.log("Years loaded:", result.data.length)
+      } else {
+        console.error("Failed to fetch years:", result.error)
         setYears([])
-        setSelectedYear("")
-        return
       }
-
-      try {
-        setIsLoadingYears(true)
-        console.log("Fetching years for program:", selectedProgram.id)
-
-        const response = await fetch(`/api/timetable-data?type=years&programId=${selectedProgram.id}`)
-        const data = await response.json()
-
-        console.log("Years response:", data)
-
-        if (data.success) {
-          setYears(data.data)
-          // Reset dependent selections
-          setSelectedYear("")
-          setSelectedGroup("")
-          setGroups([])
-
-          // Auto-select most recent year
-          if (data.data.length > 0) {
-            setSelectedYear(data.data[0].year.toString())
-          }
-        }
-      } catch (error) {
-        console.error("Error fetching years:", error)
-      } finally {
-        setIsLoadingYears(false)
-      }
+    } catch (error) {
+      console.error("Error fetching years:", error)
+      setYears([])
+    } finally {
+      setLoadingYears(false)
     }
+  }
 
-    fetchYears()
-  }, [selectedProgram])
+  const fetchGroups = async (programId: number, year: number) => {
+    try {
+      setLoadingGroups(true)
+      console.log("Fetching groups for program:", programId, "year:", year)
 
-  // Fetch groups when program and year change
-  useEffect(() => {
-    const fetchGroups = async () => {
-      if (!selectedProgram?.id || !selectedYear) {
+      const response = await fetch(`/api/timetable-data?type=groups&programId=${programId}&year=${year}`)
+      const result = await response.json()
+
+      console.log("Groups API response:", result)
+
+      if (result.success && result.data) {
+        setGroups(result.data)
+        console.log("Groups loaded:", result.data.length)
+      } else {
+        console.error("Failed to fetch groups:", result.error)
         setGroups([])
-        setSelectedGroup("")
-        return
       }
-
-      try {
-        setIsLoadingGroups(true)
-        console.log("Fetching groups for program:", selectedProgram.id, "year:", selectedYear)
-
-        const response = await fetch(
-          `/api/timetable-data?type=groups&programId=${selectedProgram.id}&year=${selectedYear}`,
-        )
-        const data = await response.json()
-
-        console.log("Groups response:", data)
-
-        if (data.success) {
-          setGroups(data.data)
-          // Reset group selection
-          setSelectedGroup("")
-
-          // Auto-select first group
-          if (data.data.length > 0) {
-            setSelectedGroup(data.data[0].full_code)
-          }
-        }
-      } catch (error) {
-        console.error("Error fetching groups:", error)
-      } finally {
-        setIsLoadingGroups(false)
-      }
+    } catch (error) {
+      console.error("Error fetching groups:", error)
+      setGroups([])
+    } finally {
+      setLoadingGroups(false)
     }
+  }
 
-    fetchGroups()
-  }, [selectedProgram, selectedYear])
+  const handleDegreeChange = (degreeId: string) => {
+    const degree = degrees.find((d) => d.id.toString() === degreeId)
+    if (degree) {
+      console.log("Degree selected:", degree)
+      setSelectedDegree(degree)
+      setSelectedProgram(null)
+      setSelectedYear(null)
+      setSelectedGroup(null)
+      setPrograms([])
+      setYears([])
+      setGroups([])
+      fetchPrograms(degree.id)
+    }
+  }
+
+  const handleProgramChange = (programId: string) => {
+    const program = programs.find((p) => p.id.toString() === programId)
+    if (program) {
+      console.log("Program selected:", program)
+      setSelectedProgram(program)
+      setSelectedYear(null)
+      setSelectedGroup(null)
+      setYears([])
+      setGroups([])
+      fetchYears(program.id)
+    }
+  }
+
+  const handleYearChange = (year: string) => {
+    const yearNum = Number.parseInt(year)
+    console.log("Year selected:", yearNum)
+    setSelectedYear(yearNum)
+    setSelectedGroup(null)
+    setGroups([])
+    if (selectedProgram) {
+      fetchGroups(selectedProgram.id, yearNum)
+    }
+  }
+
+  const handleGroupChange = (groupId: string) => {
+    const group = groups.find((g) => g.id.toString() === groupId)
+    if (group) {
+      console.log("Group selected:", group)
+      setSelectedGroup(group)
+    }
+  }
 
   const handleViewTimetable = () => {
-    if (selectedProgram && selectedYear && selectedGroup && selectedDegree) {
+    if (selectedDegree && selectedProgram && selectedYear && selectedGroup) {
       console.log("Generating slug with:", {
         programCode: selectedProgram.code,
-        year: selectedYear,
-        groupFullCode: selectedGroup,
+        year: selectedYear.toString(),
+        groupFullCode: selectedGroup.full_code,
         degreeCode: selectedDegree.code,
       })
 
-      const slug = generateSlug(selectedProgram.code, selectedYear, selectedGroup, selectedDegree.code)
+      const slug = generateSlug(
+        selectedProgram.code,
+        selectedYear.toString(),
+        selectedGroup.full_code,
+        selectedDegree.code,
+      )
+
       console.log("Generated slug:", slug)
       router.push(`/${slug}`)
     }
   }
 
-  // Get translated names based on language
-  const getDegreeName = (degree: any) => {
-    return language === "en" ? degree.name_en : degree.name_ru
-  }
-
-  const getProgramName = (program: any) => {
-    return language === "en" ? program.name_en : program.name_ru
-  }
-
-  const getGroupName = (group: any) => {
-    return language === "en" ? group.name_en : group.name_ru
-  }
+  const isViewButtonEnabled = selectedDegree && selectedProgram && selectedYear && selectedGroup
 
   return (
-    <div className="w-full max-w-md mx-auto">
-      <div className="flex flex-col space-y-4">
-        {/* Degree Selector */}
-        <div className="flex flex-col space-y-1">
-          <label htmlFor="degree-selector" className="text-sm font-medium text-left">
-            {language === "en" ? "Degree" : "Степень"}
-          </label>
-          <select
-            id="degree-selector"
-            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
-            value={selectedDegree?.id || ""}
-            onChange={(e) => {
-              const degree = degrees.find((d) => d.id === Number.parseInt(e.target.value))
-              setSelectedDegree(degree || null)
-            }}
-            disabled={isLoadingDegrees}
-          >
-            {isLoadingDegrees ? (
-              <option value="">{language === "en" ? "Loading degrees..." : "Загрузка степеней..."}</option>
-            ) : degrees.length === 0 ? (
-              <option value="">{language === "en" ? "No degrees available" : "Нет доступных степеней"}</option>
-            ) : (
-              degrees.map((degree) => (
-                <option key={degree.id} value={degree.id}>
-                  {getDegreeName(degree)}
-                </option>
-              ))
-            )}
-          </select>
+    <Card className="w-full max-w-2xl mx-auto">
+      <CardHeader>
+        <CardTitle className="text-center">
+          {language === "ru" ? "Выберите вашу программу" : "Select Your Program"}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* Degree Selection */}
+        <div className="space-y-2">
+          <label className="text-sm font-medium">{language === "ru" ? "Степень" : "Degree"}</label>
+          <Select onValueChange={handleDegreeChange} disabled={loadingDegrees}>
+            <SelectTrigger>
+              <SelectValue
+                placeholder={
+                  loadingDegrees
+                    ? language === "ru"
+                      ? "Загрузка..."
+                      : "Loading..."
+                    : degrees.length === 0
+                      ? language === "ru"
+                        ? "Нет доступных степеней"
+                        : "No degrees available"
+                      : language === "ru"
+                        ? "Выберите степень"
+                        : "Select degree"
+                }
+              />
+            </SelectTrigger>
+            <SelectContent>
+              {degrees.map((degree) => (
+                <SelectItem key={degree.id} value={degree.id.toString()}>
+                  {language === "ru" ? degree.name_ru : degree.name_en}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
-        {/* Program Selector */}
-        <div className="flex flex-col space-y-1">
-          <label htmlFor="program-selector" className="text-sm font-medium text-left">
-            {language === "en" ? "Program" : "Программа"}
-          </label>
-          <select
-            id="program-selector"
-            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
-            value={selectedProgram?.id || ""}
-            onChange={(e) => {
-              const program = programs.find((p) => p.id === Number.parseInt(e.target.value))
-              setSelectedProgram(program || null)
-            }}
-            disabled={isLoadingPrograms || !selectedDegree}
-          >
-            {isLoadingPrograms ? (
-              <option value="">{language === "en" ? "Loading programs..." : "Загрузка программ..."}</option>
-            ) : programs.length === 0 ? (
-              <option value="">{language === "en" ? "No programs available" : "Нет доступных программ"}</option>
-            ) : (
-              programs.map((program) => (
-                <option key={program.id} value={program.id}>
-                  {getProgramName(program)}
-                </option>
-              ))
-            )}
-          </select>
+        {/* Program Selection */}
+        <div className="space-y-2">
+          <label className="text-sm font-medium">{language === "ru" ? "Программа" : "Program"}</label>
+          <Select onValueChange={handleProgramChange} disabled={!selectedDegree || loadingPrograms}>
+            <SelectTrigger>
+              <SelectValue
+                placeholder={
+                  !selectedDegree
+                    ? language === "ru"
+                      ? "Сначала выберите степень"
+                      : "Select degree first"
+                    : loadingPrograms
+                      ? language === "ru"
+                        ? "Загрузка..."
+                        : "Loading..."
+                      : programs.length === 0
+                        ? language === "ru"
+                          ? "Нет доступных программ"
+                          : "No programs available"
+                        : language === "ru"
+                          ? "Выберите программу"
+                          : "Select program"
+                }
+              />
+            </SelectTrigger>
+            <SelectContent>
+              {programs.map((program) => (
+                <SelectItem key={program.id} value={program.id.toString()}>
+                  {language === "ru" ? program.name_ru : program.name_en}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
-        {/* Year Selector */}
-        <div className="flex flex-col space-y-1">
-          <label htmlFor="year-selector" className="text-sm font-medium text-left">
-            {language === "en" ? "Year of Enrollment" : "Год поступления"}
-          </label>
-          <select
-            id="year-selector"
-            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
-            value={selectedYear}
-            onChange={(e) => setSelectedYear(e.target.value)}
-            disabled={isLoadingYears || !selectedProgram}
-          >
-            {isLoadingYears ? (
-              <option value="">{language === "en" ? "Loading years..." : "Загрузка годов..."}</option>
-            ) : years.length === 0 ? (
-              <option value="">{language === "en" ? "No years available" : "Нет доступных годов"}</option>
-            ) : (
-              years.map((yearData) => (
-                <option key={yearData.year} value={yearData.year}>
-                  {yearData.year}
-                </option>
-              ))
-            )}
-          </select>
+        {/* Year Selection */}
+        <div className="space-y-2">
+          <label className="text-sm font-medium">{language === "ru" ? "Год поступления" : "Year of Enrollment"}</label>
+          <Select onValueChange={handleYearChange} disabled={!selectedProgram || loadingYears}>
+            <SelectTrigger>
+              <SelectValue
+                placeholder={
+                  !selectedProgram
+                    ? language === "ru"
+                      ? "Сначала выберите программу"
+                      : "Select program first"
+                    : loadingYears
+                      ? language === "ru"
+                        ? "Загрузка..."
+                        : "Loading..."
+                      : years.length === 0
+                        ? language === "ru"
+                          ? "Нет доступных годов"
+                          : "No years available"
+                        : language === "ru"
+                          ? "Выберите год"
+                          : "Select year"
+                }
+              />
+            </SelectTrigger>
+            <SelectContent>
+              {years.map((year) => (
+                <SelectItem key={year.year} value={year.year.toString()}>
+                  {year.year}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
-        {/* Group Selector */}
-        <div className="flex flex-col space-y-1">
-          <label htmlFor="group-selector" className="text-sm font-medium text-left">
-            {language === "en" ? "Group" : "Группа"}
-          </label>
-          <select
-            id="group-selector"
-            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
-            value={selectedGroup}
-            onChange={(e) => setSelectedGroup(e.target.value)}
-            disabled={isLoadingGroups || !selectedYear}
-          >
-            {isLoadingGroups ? (
-              <option value="">{language === "en" ? "Loading groups..." : "Загрузка групп..."}</option>
-            ) : groups.length === 0 ? (
-              <option value="">{language === "en" ? "No groups available" : "Нет доступных групп"}</option>
-            ) : (
-              groups.map((group) => (
-                <option key={group.id} value={group.full_code}>
-                  {getGroupName(group)}
-                </option>
-              ))
-            )}
-          </select>
+        {/* Group Selection */}
+        <div className="space-y-2">
+          <label className="text-sm font-medium">{language === "ru" ? "Группа" : "Group"}</label>
+          <Select onValueChange={handleGroupChange} disabled={!selectedYear || loadingGroups}>
+            <SelectTrigger>
+              <SelectValue
+                placeholder={
+                  !selectedYear
+                    ? language === "ru"
+                      ? "Сначала выберите год"
+                      : "Select year first"
+                    : loadingGroups
+                      ? language === "ru"
+                        ? "Загрузка..."
+                        : "Loading..."
+                      : groups.length === 0
+                        ? language === "ru"
+                          ? "Нет доступных групп"
+                          : "No groups available"
+                        : language === "ru"
+                          ? "Выберите группу"
+                          : "Select group"
+                }
+              />
+            </SelectTrigger>
+            <SelectContent>
+              {groups.map((group) => (
+                <SelectItem key={group.id} value={group.id.toString()}>
+                  {language === "ru" ? group.name_ru : group.name_en} ({group.code})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         {/* View Timetable Button */}
-        <Button
-          className="mt-6 w-full"
-          onClick={handleViewTimetable}
-          disabled={!selectedProgram || !selectedYear || !selectedGroup || !selectedDegree}
-        >
-          <Calendar className="mr-2 h-4 w-4" />
-          {language === "en" ? "View Timetable" : "Посмотреть расписание"}
+        <Button onClick={handleViewTimetable} disabled={!isViewButtonEnabled} className="w-full mt-6" size="lg">
+          {language === "ru" ? "Посмотреть расписание" : "View Timetable"}
         </Button>
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   )
 }
