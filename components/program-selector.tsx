@@ -155,8 +155,10 @@ export function ProgramSelector({ defaultProgram, defaultYear, defaultGroup }: P
   }, [selectedProgram, selectedYear])
 
   const handleViewTimetable = () => {
-    if (selectedProgram && selectedYear && selectedGroup) {
-      const slug = generateSlug(selectedProgram.code, selectedYear, selectedGroup, selectedDegree?.id)
+    if (selectedProgram && selectedYear && selectedGroup && selectedDegree) {
+      // Use the database codes to generate the slug
+      const slug = generateSlug(selectedProgram.code, selectedYear, selectedGroup, selectedDegree.code)
+      console.log("Generated slug:", slug) // Debug log
       router.push(`/${slug}`)
     }
   }
@@ -254,7 +256,7 @@ export function ProgramSelector({ defaultProgram, defaultYear, defaultGroup }: P
             disabled={isLoadingYears || !selectedProgram || years.length === 0}
           >
             {isLoadingYears ? (
-              <option value="">{language === "en" ? "Loading..." : "Загрузка..."}</option>
+              <option value="">{language === "en" ? "Loading..." : "Загрузka..."}</option>
             ) : years.length === 0 ? (
               <option value="">{language === "en" ? "No years available" : "Нет доступных годов"}</option>
             ) : (

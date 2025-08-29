@@ -98,50 +98,24 @@ export function getGroupDisplayName(group: string): string {
   return group
 }
 
-// Function to get program code for slug - updated for database structure
-function getProgramCode(program: string): string {
-  // Convert program names to codes
-  const programMap: Record<string, string> = {
-    Management: "men",
-    "International Management": "mmen",
-    "Public Administration": "gmu",
-    "Business Analytics and Big Data": "babd",
-    "Smart City Management": "scm",
-    "Corporate Finance": "cfin",
-  }
-
-  return programMap[program] || "prog"
-}
-
-// Function to get degree code for slug
-function getDegreeCode(degreeId: number): string {
-  // 1 = Bachelor, 2 = Master (based on our seed data)
-  return degreeId === 2 ? "mag" : "bak"
-}
-
-// Function to generate a slug for the URL - updated for database structure
-export function generateSlug(programCode: string, year: string, groupFullCode: string, degreeId: number): string {
+// Function to generate a slug for the URL using database codes
+export function generateSlug(programCode: string, year: string, groupFullCode: string, degreeCode: string): string {
   // Extract the year prefix (e.g., 2023 -> 23)
   const yearPrefix = year.substring(2)
 
   // Extract the group code from full_code (e.g., "23.B12-vshm" -> "b12")
-  const groupCode = getGroupDisplayName(groupFullCode).toLowerCase()
+  const groupCodeMatch = groupFullCode.match(/\d+\.([A-Za-z]\d+)-/)
+  const groupCode = groupCodeMatch ? groupCodeMatch[1].toLowerCase() : "unknown"
 
-  // Get program code for the slug
-  const programSlugCode = getProgramCode(programCode)
-
-  // Get degree code for the slug
-  const degreeCode = getDegreeCode(degreeId)
-
-  // Generate the slug (e.g., bak-men-24-b01 or mag-men-24-b01)
-  return `${degreeCode}-${programSlugCode}-${yearPrefix}-${groupCode}`
+  // Generate the slug using database codes (e.g., bak-men-23-b01)
+  return `${degreeCode}-${programCode}-${yearPrefix}-${groupCode}`
 }
 
-// Function to parse a slug and extract program, year, and group - updated for database
+// Function to parse a slug and extract program, year, and group using database codes
 export function parseSlug(
   slug: string,
-): { program: string; year: string; groupPattern: string; programCode: string; degree: string } | null {
-  // Expected format: degree-programcode-yy-group (e.g., bak-men-24-b01 or mag-mmen-23-b11)
+): { degreeCode: string; programCode: string; year: string; groupCode: string; groupPattern: string } | null {
+  // Expected format: degree-programcode-yy-group (e.g., bak-men-24-b01)
   const parts = slug.split("-")
   if (parts.length >= 4) {
     const degreeCode = parts[0].toLowerCase()
@@ -149,34 +123,18 @@ export function parseSlug(
     const yearPrefix = parts[2]
     const groupCode = parts[3].toUpperCase()
 
-    // Map program code to program name
-    const programMap: Record<string, string> = {
-      men: "Management",
-      mmen: "International Management",
-      gmu: "Public Administration",
-      babd: "Business Analytics and Big Data",
-      scm: "Smart City Management",
-      cfin: "Corporate Finance",
-    }
+    // Construct the full year
+    const fullYear = `20${yearPrefix}`
 
-    const programName = programMap[programCode]
-    if (!programName) {
-      return null
-    }
-
-    // Determine degree from degreeCode
-    const degree = degreeCode === "mag" ? "master" : "bachelor"
-
-    // Always use vshm suffix for consistency with the data files
-    const suffix = "vshm"
+    // Construct the group pattern that matches the database full_code format
+    const groupPattern = `${yearPrefix}.${groupCode}-vshm`
 
     return {
-      program: programName,
-      year: `20${yearPrefix}`,
-      // Use vshm suffix for all groups to match the data files
-      groupPattern: `${yearPrefix}.${groupCode}-${suffix}`,
-      programCode: programCode,
-      degree: degree,
+      degreeCode,
+      programCode,
+      year: fullYear,
+      groupCode,
+      groupPattern,
     }
   }
 
